@@ -52,8 +52,6 @@ def init_db():
     conn.close()
 
 
-init_db()
-
 def get_password_hash(password: str, algo: str) -> dict:
     result = {"algo": algo, "salt": None, "hash": None}
 
@@ -94,14 +92,34 @@ def get_db_conn():
     finally:
         conn.close()
 
+def user_exists(username: str, cursor: sqlite3.Cursor) -> bool:
+    cursor.execute("SELECT 1 FROM users WHERE username = ?", (username,))
+    if cursor.fetchone():
+        return True
+    return False
+
+
+def insert_user_to_db(username: str, algo: HashAlgo, salt: Optional[str], hash: str, totp_secret: str, cursor: sqlite3.Cursor, conn: sqlite3.Connection):
+    try:
+        cursor.execute('''
+            INSERT INTO users (username, algo_type, salt, password_hash, totp_secret)
+            VALUES (?, ?, ?, ?, ?)
+        ''', (
+            username,
+            algo,
+            salt,
+            hash,
+            totp_secret
+        ))
+        conn.commit()
+    except sqlite3.Error as e:
+        raise HTTPException(status_code=500, detail=str(e))
 
 @app.post("/register")
 def register(request: RegisterRequest, conn: sqlite3.Connection = Depends(get_db_conn)):
     cursor = conn.cursor()
 
-    # checks if user exists, with SQL parameters
-    cursor.execute("SELECT 1 FROM users WHERE username = ?", (request.username,))
-    if cursor.fetchone():
+    if user_exists(request.username, cursor):
         raise HTTPException(status_code=400, detail="Username already exists")
 
     # hash the password
@@ -109,17 +127,7 @@ def register(request: RegisterRequest, conn: sqlite3.Connection = Depends(get_db
 
     # saving to the DB
     try:
-        cursor.execute('''
-            INSERT INTO users (username, algo_type, salt, password_hash, totp_secret)
-            VALUES (?, ?, ?, ?, ?)
-        ''', (
-            request.username,
-            request.algo,
-            hash_data["salt"],  # יהיה מלא רק ב-SHA256
-            hash_data["hash"],
-            request.totp_secret
-        ))
-        conn.commit()
+        insert_user_to_db(request.username, request.algo, hash_data["salt"], hash_data["hash"], request.totp_secret, cursor, conn)
     except sqlite3.Error as e:
         raise HTTPException(status_code=500, detail=str(e))
 
@@ -132,4 +140,5 @@ def register(request: RegisterRequest, conn: sqlite3.Connection = Depends(get_db
 
 
 if __name__ == "__main__":
+    init_db()
     uvicorn.run(app, host="0.0.0.0", port=8000)
