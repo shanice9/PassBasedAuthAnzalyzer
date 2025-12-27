@@ -32,6 +32,9 @@ class RegisterRequest(BaseModel):
     algo: HashAlgo = HashAlgo.SHA256
     totp_secret: Optional[str] = None
 
+class LoginRequest(BaseModel):
+    username: str
+    password: str
 
 # initializing db
 def init_db():
@@ -50,6 +53,47 @@ def init_db():
     ''')
     conn.commit()
     conn.close()
+
+
+def get_db_conn():
+    conn = sqlite3.connect(DB_NAME)
+    conn.row_factory = sqlite3.Row
+    try:
+        yield conn
+    finally:
+        conn.close()
+
+
+def user_exists(username: str, cursor: sqlite3.Cursor) -> bool:
+    cursor.execute("SELECT 1 FROM users WHERE username = ?", (username,))
+    if cursor.fetchone():
+        return True
+    return False
+
+
+def verify_password(plain_password: str, user_row: sqlite3.Row) -> bool:
+    algo = user_row["algo_type"]
+    stored_hash = user_row["password_hash"]
+
+    password_bytes = plain_password.encode('utf-8')
+
+    if algo == HashAlgo.SHA256:
+        salt = user_row["salt"]
+        combined = salt + plain_password
+        check_hash = hashlib.sha256(combined.encode('utf-8')).hexdigest()
+        return check_hash == stored_hash
+
+    elif algo == HashAlgo.BCRYPT:
+        stored_hash_bytes = stored_hash.encode('utf-8')
+        return bcrypt.checkpw(password_bytes, stored_hash_bytes)
+
+    elif algo == HashAlgo.ARGON2:
+        try:
+            return ph_argon2.verify(stored_hash, plain_password)
+        except Exception:
+            return False
+
+    return False
 
 
 def get_password_hash(password: str, algo: str) -> dict:
@@ -82,21 +126,6 @@ def get_password_hash(password: str, algo: str) -> dict:
         # no need to set salt because it's in the hash
 
     return result
-
-
-def get_db_conn():
-    conn = sqlite3.connect(DB_NAME)
-    conn.row_factory = sqlite3.Row
-    try:
-        yield conn
-    finally:
-        conn.close()
-
-def user_exists(username: str, cursor: sqlite3.Cursor) -> bool:
-    cursor.execute("SELECT 1 FROM users WHERE username = ?", (username,))
-    if cursor.fetchone():
-        return True
-    return False
 
 
 def insert_user_to_db(username: str, algo: HashAlgo, salt: Optional[str], hash: str, totp_secret: str, cursor: sqlite3.Cursor, conn: sqlite3.Connection):
@@ -136,6 +165,23 @@ def register(request: RegisterRequest, conn: sqlite3.Connection = Depends(get_db
         "username": request.username,
         "algo_used": request.algo,
         "totp_secret": request.totp_secret
+    }
+
+
+@app.post("/login")
+def login(request: LoginRequest, conn: sqlite3.Connection = Depends(get_db_conn)):
+    cursor = conn.cursor()
+
+    cursor.execute("SELECT * FROM users WHERE username = ?", (request.username,))
+    user = cursor.fetchone()
+
+    if not user or not verify_password(request.password, user):
+        raise HTTPException(status_code=401, detail="Invalid credentials")
+
+    return {
+        "message": "Login successful",
+        "user_id": user["id"],
+        "username": user["username"]
     }
 
 
