@@ -1,0 +1,4 @@
+timestamp,group_seed,username,password_attempt,attack_type,status_code,result,latency_ms
+2025-12-27T21:18:26.117318,534919433,admin,password123,Brute-Force,0,ERROR,19.43
+2025-12-27T21:18:26.175489,534919433,admin,admin,Brute-Force,0,ERROR,4.76
+2025-12-27T21:18:26.232778,534919433,admin,qwerty,Brute-Force,0,ERROR,2.04
