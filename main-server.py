@@ -5,6 +5,7 @@ import uvicorn
 import json
 import os
 import bcrypt
+import time
 from enum import Enum
 from typing import Optional
 from fastapi import FastAPI, HTTPException, Depends
@@ -13,6 +14,7 @@ from argon2 import PasswordHasher
 
 # sqlite db filename
 DB_NAME = "PassBasedAuth.sqlite"
+LOG_FILE = "attempts.log"
 USERS_FILE = "users.json"
 GROUP_SEED = "534919433"
 
@@ -166,6 +168,24 @@ def insert_user_to_db(username: str, algo: HashAlgo, salt: Optional[str], hash: 
     except sqlite3.Error as e:
         raise HTTPException(status_code=500, detail=str(e))
 
+
+def log_attempt(username: str, hash_mode: str, result: str, latency_ms: float, protection_flags: str):
+    log_entry = {
+        "timestamp": time.time(),
+        "group_seed": GROUP_SEED,
+        "username": username,
+        "hash_mode": hash_mode,
+        "protection_flags": protection_flags,
+        "result": result,
+        "latency_ms": latency_ms
+    }
+    try:
+        with open(LOG_FILE, "a", encoding="utf-8") as f:
+            f.write(json.dumps(log_entry) + "\n")
+    except Exception as e:
+        print(f"Error writing to log: {e}")
+
+
 @app.post("/register")
 def register(request: RegisterRequest, conn: sqlite3.Connection = Depends(get_db_conn)):
     cursor = conn.cursor()
@@ -192,16 +212,35 @@ def register(request: RegisterRequest, conn: sqlite3.Connection = Depends(get_db
 
 @app.post("/login")
 def login(request: LoginRequest, conn: sqlite3.Connection = Depends(get_db_conn)):
+    start_time = time.time()
+    hash_mode = "Unknown"
+    protection_flags = "None"
+    login_success = False
     cursor = conn.cursor()
 
+    # Check that user exists and fetch the data for login
     cursor.execute("SELECT * FROM users WHERE username = ?", (request.username,))
     user = cursor.fetchone()
 
-    if not user or not verify_password(request.password, user):
-        raise HTTPException(status_code=401, detail="Invalid credentials")
+    # Check user exists
+    if user:
+        hash_mode = user["algo_type"]
+        # Check password is correct
+        if verify_password(request.password, user):
+            login_success = True
+
+    # Setting log parameters
+    end_time = time.time()
+    latency_ms = (end_time - start_time) * 1000
+    result_str = "Login successful" if login_success else "Invalid credentials"
+
+    log_attempt(request.username, hash_mode, result_str, latency_ms, protection_flags)
+
+    if not login_success:
+        raise HTTPException(status_code=401, detail=result_str)
 
     return {
-        "message": "Login successful",
+        "message": result_str,
         "user_id": user["id"],
         "username": user["username"]
     }
