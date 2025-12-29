@@ -1,3 +1,4 @@
 {
-  "algo_type": "sha256"
+  "algo_type": "sha256",
+  "protection_flags" : ["pepper"]
 }

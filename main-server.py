@@ -19,6 +19,8 @@ USERS_FILE = "users.json"
 CONFIG_FILE = "config.json"
 HASH_ALGO = "sha256"
 GROUP_SEED = "534919433"
+PROTECTION_FLAGS = []
+PEPPER_SECRET = ""
 
 # argon2id setup
 ph_argon2 = PasswordHasher(
@@ -104,7 +106,7 @@ def load_users():
 
 
 def load_config():
-    global HASH_ALGO
+    global HASH_ALGO, PROTECTION_FLAGS, PEPPER_SECRET
     if not os.path.exists(CONFIG_FILE):
         print(f"{CONFIG_FILE} not found, stopping server.")
         raise FileNotFoundError(f"{CONFIG_FILE} not found")
@@ -117,6 +119,15 @@ def load_config():
             else:
                 HASH_ALGO = HashAlgo.SHA256
                 print(f"'algo_type' key not found in {CONFIG_FILE}, setting default algo => {HASH_ALGO}.")
+            PROTECTION_FLAGS = data.get("protection_flags", [])
+            if "pepper" in PROTECTION_FLAGS:
+                PEPPER_SECRET = os.getenv("SERVER_PEPPER", "")
+                if PEPPER_SECRET:
+                    print(f"Pepper loaded from environment variable.")
+                else:
+                    print("WARNING: 'pepper' flag is on, but SERVER_PEPPER env var is empty/missing!")
+            else:
+                PEPPER_SECRET = ""
     except Exception as e:
         print(f"Error loading {CONFIG_FILE}: {e}")
     return
@@ -157,9 +168,11 @@ def user_exists(username: str, cursor: sqlite3.Cursor) -> bool:
 
 
 def verify_password(plain_password: str, user_row: sqlite3.Row) -> bool:
+    if PEPPER_SECRET:
+        plain_password = plain_password + PEPPER_SECRET
+
     algo = user_row["algo_type"]
     stored_hash = user_row["password_hash"]
-
     password_bytes = plain_password.encode('utf-8')
 
     if algo == HashAlgo.SHA256:
@@ -182,8 +195,9 @@ def verify_password(plain_password: str, user_row: sqlite3.Row) -> bool:
 
 
 def get_password_hash(password: str, algo: str) -> dict:
+    if PEPPER_SECRET:
+        password = password + PEPPER_SECRET
     result = {"algo": algo, "salt": None, "hash": None}
-
     password_bytes = password.encode('utf-8')
 
     if algo == HashAlgo.SHA256:
@@ -274,7 +288,6 @@ def register(request: RegisterRequest, conn: sqlite3.Connection = Depends(get_db
 def login(request: LoginRequest, conn: sqlite3.Connection = Depends(get_db_conn)):
     start_time = time.time()
     hash_mode = "Unknown"
-    protection_flags = "None"
     login_success = False
     cursor = conn.cursor()
 
@@ -294,7 +307,7 @@ def login(request: LoginRequest, conn: sqlite3.Connection = Depends(get_db_conn)
     latency_ms = (end_time - start_time) * 1000
     result_str = "Login successful" if login_success else "Invalid credentials"
 
-    log_attempt(request.username, hash_mode, result_str, latency_ms, protection_flags)
+    log_attempt(request.username, hash_mode, result_str, latency_ms, PROTECTION_FLAGS)
 
     if not login_success:
         raise HTTPException(status_code=401, detail=result_str)
