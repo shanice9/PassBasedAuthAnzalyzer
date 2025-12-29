@@ -2,15 +2,19 @@ import sqlite3
 import hashlib
 import secrets
 import uvicorn
+import json
+import os
+import bcrypt
 from enum import Enum
 from typing import Optional
 from fastapi import FastAPI, HTTPException, Depends
 from pydantic import BaseModel
-import bcrypt
 from argon2 import PasswordHasher
 
 # sqlite db filename
 DB_NAME = "PassBasedAuth.sqlite"
+USERS_FILE = "users.json"
+GROUP_SEED = "534919433"
 
 # argon2id setup
 ph_argon2 = PasswordHasher(
@@ -53,6 +57,24 @@ def init_db():
     ''')
     conn.commit()
     conn.close()
+
+
+def load_group_seed():
+    global GROUP_SEED
+    if not os.path.exists(USERS_FILE):
+        print(f"{USERS_FILE} not found, Using default seed => {GROUP_SEED}.")
+        return
+
+    try:
+        with open(USERS_FILE, 'r', encoding='utf-8') as f:
+            data = json.load(f)
+            if "group_seed" in data:
+                GROUP_SEED = data["group_seed"]
+                print(f"Loaded GROUP_SEED from {USERS_FILE}: {GROUP_SEED}")
+            else:
+                print(f"'group_seed' key not found in users.json, setting default seed => {GROUP_SEED}.")
+    except Exception as e:
+        print(f"Error loading users.json: {e}")
 
 
 def get_db_conn():
@@ -186,5 +208,6 @@ def login(request: LoginRequest, conn: sqlite3.Connection = Depends(get_db_conn)
 
 
 if __name__ == "__main__":
+    load_group_seed()
     init_db()
     uvicorn.run(app, host="0.0.0.0", port=8000)
