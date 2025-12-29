@@ -61,6 +61,48 @@ def init_db():
     conn.commit()
     conn.close()
 
+
+def load_users():
+    if not os.path.exists(USERS_FILE):
+        print(f"{USERS_FILE} not found, no users loaded.")
+        return
+
+    conn = sqlite3.connect(DB_NAME)
+    conn.row_factory = sqlite3.Row
+
+    try:
+        with open(USERS_FILE, 'r', encoding='utf-8') as f:
+            data = json.load(f)
+            users_list = data.get("users", [])
+            count = 0
+
+            for user in users_list:
+                username = user["username"]
+                plain_password = user["password"]
+                # Using get in case totp_secret doesn't exists
+                totp_secret = user.get("totp_secret")
+
+                reg_req = RegisterRequest(
+                    username=username,
+                    password=plain_password,
+                    totp_secret=totp_secret
+                )
+
+                try:
+                    register(reg_req, conn)
+                    count += 1
+                except HTTPException as e:
+                    print(f"Skipping user '{username}': {e.detail}")
+                except Exception as e:
+                    print(f"Error registering '{username}': {e}")
+            print(f"Successfully loaded {count} new users into the database.")
+
+    except Exception as e:
+        print(f"Error loading users from {USERS_FILE}: {e}")
+    finally:
+        conn.close()
+
+
 def load_config():
     global HASH_ALGO
     if not os.path.exists(CONFIG_FILE):
@@ -268,4 +310,5 @@ if __name__ == "__main__":
     load_config()
     load_group_seed()
     init_db()
+    load_users()
     uvicorn.run(app, host="0.0.0.0", port=8000)
