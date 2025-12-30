@@ -3,6 +3,7 @@ import secrets
 import bcrypt
 from argon2 import PasswordHasher
 import config
+import pyotp
 
 # argon2id setup
 ph_argon2 = PasswordHasher(
@@ -10,6 +11,20 @@ ph_argon2 = PasswordHasher(
     memory_cost=65536,
     parallelism=1
 )
+
+
+def verify_totp(secret: str, code: str) -> bool:
+    if not secret:
+        return False
+
+    try:
+        totp = pyotp.TOTP(secret, interval=30)
+        # 'valid_window' is used for dealing with time sync, allowing current, previous and next window to verify
+        return totp.verify(code, valid_window=1)
+    except Exception as e:
+        print(f"TOTP Verification Error: {e}")
+        return False
+
 
 def get_password_hash(password: str, algo: str) -> dict:
     if config.PEPPER_SECRET:
