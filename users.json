@@ -3,7 +3,8 @@
   "users": [
     {
       "username": "weak1",
-      "password": "123456"
+      "password": "123456",
+      "totp_secret": "RFZERGPVDSLGD6FQR3Y6Q43SEX54LGBD"
     },
     {
       "username": "weak2",

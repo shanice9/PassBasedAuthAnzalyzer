@@ -11,6 +11,10 @@ print(result)
 output is:
 `534919433`
 
+## Password file
+
+download from here https://github.com/brannondorsey/naive-hashcat/releases/download/data/rockyou.txt
+
 ## Password selection
 
 ### Weak
@@ -31,7 +35,3 @@ requirements:
 - At least 12 characters
 - At least 1 uppercase, 1 lowercase, 1 digit and 1 symbol
 - Strings in order are not allowed, such as 123, or abc
-
-## Password file
-
-download from here https://github.com/brannondorsey/naive-hashcat/releases/download/data/rockyou.txt
