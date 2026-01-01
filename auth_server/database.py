@@ -40,6 +40,10 @@ def user_exists(username: str, cursor: sqlite3.Cursor) -> bool:
         return True
     return False
 
+def get_user(username: str, cursor: sqlite3.Cursor) -> Optional[dict]:
+    cursor.execute("SELECT * FROM users WHERE username = ?", (username,))
+    return cursor.fetchone()
+
 
 def insert_user_to_db(username: str, algo: str, salt: Optional[str], hash_val: str, totp_secret: Optional[str],
                       cursor: sqlite3.Cursor, conn: sqlite3.Connection):
