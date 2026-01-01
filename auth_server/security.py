@@ -4,6 +4,9 @@ import bcrypt
 from argon2 import PasswordHasher
 import config
 import pyotp
+from fastapi import Request
+from slowapi import Limiter
+from slowapi.util import get_remote_address
 
 # argon2id setup
 ph_argon2 = PasswordHasher(
@@ -12,6 +15,16 @@ ph_argon2 = PasswordHasher(
     parallelism=1
 )
 
+def get_limit_value():
+    """Returns the rate limit string from config (e.g., '5/minute')"""
+    return config.RATE_LIMIT
+
+def rate_limit_key(request: Request):
+    if "rate_limit" not in config.PROTECTION_FLAGS:
+        return None
+    return get_remote_address(request)
+
+limiter = Limiter(key_func=rate_limit_key)
 
 def verify_totp(secret: str, code: str) -> bool:
     if not secret:

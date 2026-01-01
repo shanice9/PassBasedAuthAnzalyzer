@@ -1,0 +1,7 @@
+auth_server/__pycache__/*
+genTOTP.py
+rockyou.txt
+.DS_Store
+PassBasedAuth.sqlite
+attempts.log
+attacker_log.jsonl

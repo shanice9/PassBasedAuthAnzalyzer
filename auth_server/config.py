@@ -12,6 +12,7 @@ HASH_ALGO = "sha256"
 GROUP_SEED = "534919433"
 PROTECTION_FLAGS = []
 PEPPER_SECRET = ""
+RATE_LIMIT = "3/minute"
 
 # all possible hashes
 class HashAlgo(str, Enum):
@@ -21,7 +22,7 @@ class HashAlgo(str, Enum):
 
 
 def load_config():
-    global HASH_ALGO, PROTECTION_FLAGS, PEPPER_SECRET
+    global HASH_ALGO, PROTECTION_FLAGS, PEPPER_SECRET, RATE_LIMIT
     if not os.path.exists(CONFIG_FILE):
         print(f"{CONFIG_FILE} not found, stopping server.")
         raise FileNotFoundError(f"{CONFIG_FILE} not found")
@@ -46,6 +47,13 @@ def load_config():
                     print("WARNING: 'pepper' flag is on, but SERVER_PEPPER env var is empty/missing!")
             else:
                 PEPPER_SECRET = ""
+
+            if "rate_limit" in PROTECTION_FLAGS:
+                RATE_LIMIT = data["rate_limit"]
+                if RATE_LIMIT:
+                    print(f"Rate limit loaded from environment variable.")
+                else:
+                    print("WARNING: 'rate_limit' flag is on, but RATE_LIMIT env var is empty/missing!")
     except Exception as e:
         print(f"Error loading {CONFIG_FILE}: {e}")
 
