@@ -14,6 +14,11 @@ import loaders
 app = FastAPI(title="Auth Server")
 
 
+class TOTPLoginRequest(BaseModel):
+    username: str
+    totp_code: str
+
+
 class RegisterRequest(BaseModel):
     username: str
     password: str
