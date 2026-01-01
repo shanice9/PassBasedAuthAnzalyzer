@@ -3,10 +3,13 @@ import secrets
 import bcrypt
 from argon2 import PasswordHasher
 import config
+import database
 import pyotp
 from fastapi import Request
+from fastapi.responses import JSONResponse
 from slowapi import Limiter
 from slowapi.util import get_remote_address
+from slowapi.errors import RateLimitExceeded
 
 # argon2id setup
 ph_argon2 = PasswordHasher(
@@ -93,3 +96,27 @@ def verify_password(plain_password: str, user_row) -> bool:
             return False
 
     return False
+
+# Created so we will log when rate limit reached
+async def custom_rate_limit_handler(request: Request, exc: RateLimitExceeded):
+    username = "Unknown"
+
+    try:
+        body = await request.json()
+        if isinstance(body, dict):
+            username = body.get("username", "Unknown")
+    except Exception:
+        pass
+
+    database.log_attempt(
+        username=username,
+        hash_mode="Unknown",
+        result="Rate Limit Exceeded",
+        latency_ms=0.0,
+        protection_flags=config.PROTECTION_FLAGS
+    )
+
+    return JSONResponse(
+        status_code=429,
+        content={"detail": f"Rate limit exceeded: {exc.detail}"}
+    )
