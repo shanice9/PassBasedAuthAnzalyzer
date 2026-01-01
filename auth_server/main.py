@@ -14,7 +14,7 @@ import loaders
 
 app = FastAPI(title="Auth Server")
 app.state.limiter = security.limiter
-app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
+app.add_exception_handler(RateLimitExceeded, security.custom_rate_limit_handler)
 
 class TOTPLoginRequest(BaseModel):
     username: str
