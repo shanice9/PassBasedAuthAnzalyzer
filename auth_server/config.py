@@ -13,6 +13,7 @@ GROUP_SEED = "534919433"
 PROTECTION_FLAGS = []
 PEPPER_SECRET = ""
 RATE_LIMIT = "3/minute"
+CAPTCHA_THRESHOLD = 3
 
 # all possible hashes
 class HashAlgo(str, Enum):
@@ -22,7 +23,7 @@ class HashAlgo(str, Enum):
 
 
 def load_config():
-    global HASH_ALGO, PROTECTION_FLAGS, PEPPER_SECRET, RATE_LIMIT
+    global HASH_ALGO, PROTECTION_FLAGS, PEPPER_SECRET, RATE_LIMIT, CAPTCHA_THRESHOLD
     if not os.path.exists(CONFIG_FILE):
         print(f"{CONFIG_FILE} not found, stopping server.")
         raise FileNotFoundError(f"{CONFIG_FILE} not found")
@@ -38,22 +39,9 @@ def load_config():
                 print(f"Defaulting algo => {HASH_ALGO}.")
 
             PROTECTION_FLAGS = data.get("protection_flags", [])
-
-            if "pepper" in PROTECTION_FLAGS:
-                PEPPER_SECRET = os.getenv("SERVER_PEPPER", "")
-                if PEPPER_SECRET:
-                    print(f"Pepper loaded from environment variable.")
-                else:
-                    print("WARNING: 'pepper' flag is on, but SERVER_PEPPER env var is empty/missing!")
-            else:
-                PEPPER_SECRET = ""
-
-            if "rate_limit" in PROTECTION_FLAGS:
-                RATE_LIMIT = data["rate_limit"]
-                if RATE_LIMIT:
-                    print(f"Rate limit loaded from environment variable.")
-                else:
-                    print("WARNING: 'rate_limit' flag is on, but RATE_LIMIT env var is empty/missing!")
+            PEPPER_SECRET = os.getenv("SERVER_PEPPER", "")
+            RATE_LIMIT = data.get("rate_limit", "3/minute")
+            CAPTCHA_THRESHOLD = data.get("captcha_threshold", 3)
     except Exception as e:
         print(f"Error loading {CONFIG_FILE}: {e}")
 

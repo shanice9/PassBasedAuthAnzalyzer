@@ -4,6 +4,7 @@ import bcrypt
 from argon2 import PasswordHasher
 import config
 import database
+import uuid
 import pyotp
 from fastapi import Request
 from fastapi.responses import JSONResponse
@@ -18,8 +19,35 @@ ph_argon2 = PasswordHasher(
     parallelism=1
 )
 
+FAILED_ATTEMPTS = dict()
+VALID_CAPTCHA_TOKENS = set()
+
+def record_failed_attempt(ip: str):
+    if ip not in FAILED_ATTEMPTS.keys():
+        FAILED_ATTEMPTS[ip] = 0
+    FAILED_ATTEMPTS[ip] += 1
+
+def reset_failed_attempts(ip: str):
+    if ip in FAILED_ATTEMPTS:
+        del FAILED_ATTEMPTS[ip]
+
+def is_captcha_required(ip: str) -> bool:
+    if "captcha" not in config.PROTECTION_FLAGS:
+        return False
+    return FAILED_ATTEMPTS.get(ip, 0) >= config.CAPTCHA_THRESHOLD
+
+def generate_captcha_token() -> str:
+    token = str(uuid.uuid4())
+    VALID_CAPTCHA_TOKENS.add(token)
+    return token
+
+def validate_and_consume_captcha_token(token: str) -> bool:
+    if token in VALID_CAPTCHA_TOKENS:
+        VALID_CAPTCHA_TOKENS.remove(token)
+        return True
+    return False
+
 def get_limit_value():
-    """Returns the rate limit string from config (e.g., '5/minute')"""
     return config.RATE_LIMIT
 
 def rate_limit_key(request: Request):
@@ -43,7 +71,7 @@ def verify_totp(secret: str, code: str) -> bool:
 
 
 def get_password_hash(password: str, algo: str) -> dict:
-    if config.PEPPER_SECRET:
+    if "pepper" in config.PROTECTION_FLAGS:
         password = password + config.PEPPER_SECRET
 
     result = {"algo": algo, "salt": None, "hash": None}
@@ -72,7 +100,7 @@ def get_password_hash(password: str, algo: str) -> dict:
     return result
 
 def verify_password(plain_password: str, user_row) -> bool:
-    if config.PEPPER_SECRET:
+    if "pepper" in config.PROTECTION_FLAGS:
         plain_password = plain_password + config.PEPPER_SECRET
 
     algo = user_row["algo_type"]

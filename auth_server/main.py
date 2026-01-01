@@ -11,6 +11,7 @@ import config
 import security
 import database
 import loaders
+from auth_server.security import record_failed_attempt
 
 app = FastAPI(title="Auth Server")
 app.state.limiter = security.limiter
@@ -30,6 +31,16 @@ class RegisterRequest(BaseModel):
 class LoginRequest(BaseModel):
     username: str
     password: str
+    captcha_token: Optional[str] = None
+
+
+@app.get("/admin/get_captcha_token")
+def get_captcha_token(group_seed: str):
+    if group_seed != config.GROUP_SEED:
+        raise HTTPException(status_code=403, detail="Invalid GROUP_SEED")
+
+    token = security.generate_captcha_token()
+    return {"captcha_token": token}
 
 
 @app.post("/register")
@@ -70,6 +81,7 @@ def login(req: LoginRequest, request: Request, conn: sqlite3.Connection = Depend
     # For logs
     start_time = time.time()
 
+    client_ip = request.client.host if request.client else "unknown"
     result_str = "Password login | Invalid credentials"
     totp_enabled = "totp" in config.PROTECTION_FLAGS
     login_success = False
@@ -79,10 +91,25 @@ def login(req: LoginRequest, request: Request, conn: sqlite3.Connection = Depend
     hash_mode = user["algo_type"] if user else "Unknown"
     totp_secret = user["totp_secret"] if user else None
     totp_required = totp_enabled and totp_secret
+    captcha_enabled = "captcha" in config.PROTECTION_FLAGS
+
+    # If captcha is enabled and required for this ip, and invalid captcha token or it doesn't exists
+    if captcha_enabled and security.is_captcha_required(client_ip) and not (req.captcha_token and security.validate_and_consume_captcha_token(req.captcha_token)):
+        result_str = "CAPTCHA Required / Invalid Token"
+        database.log_attempt(
+            username=req.username,
+            hash_mode="Unknown",
+            result=result_str,
+            latency_ms=(time.time() - start_time) * 1000,
+            protection_flags=config.PROTECTION_FLAGS
+        )
+        raise HTTPException(status_code=401, detail=result_str)
 
     if user and security.verify_password(req.password, user):
         login_success = True
         result_str = "Password login | Login Successful"
+        if captcha_enabled:
+            security.reset_failed_attempts(client_ip)
         if totp_required:
             result_str = "Password login | TOTP required"
 
@@ -98,6 +125,8 @@ def login(req: LoginRequest, request: Request, conn: sqlite3.Connection = Depend
     )
 
     if not login_success:
+        if captcha_enabled:
+            security.record_failed_attempt(client_ip)
         raise HTTPException(status_code=401, detail=result_str)
 
     return {
