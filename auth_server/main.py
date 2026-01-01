@@ -3,7 +3,7 @@ import sqlite3
 import uvicorn
 from typing import Optional
 from fastapi import FastAPI, HTTPException, Depends, Request
-from slowapi import _rate_limit_exceeded_handler
+from fastapi.responses import JSONResponse
 from slowapi.errors import RateLimitExceeded
 from pydantic import BaseModel
 
@@ -103,7 +103,13 @@ def login(req: LoginRequest, request: Request, conn: sqlite3.Connection = Depend
             latency_ms=(time.time() - start_time) * 1000,
             protection_flags=config.PROTECTION_FLAGS
         )
-        raise HTTPException(status_code=401, detail=result_str)
+        return JSONResponse(
+            status_code=401,
+            content={
+                "detail": result_str,
+                "captcha_required": True
+            }
+        )
 
     if user and security.verify_password(req.password, user):
         login_success = True
