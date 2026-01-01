@@ -2,7 +2,7 @@
   "target_url": "http://localhost:8000/login",
   "log_file": "attacker_log.jsonl",
   "group_seed": "534919433",
-  "target_username": "weak1",
+  "target_username": "weak2",
   "password_file": "rockyou.txt",
   "max_attempts": 100,
   "request_timeout": 5

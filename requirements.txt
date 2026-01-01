@@ -1,2 +1,6 @@
 requests>=2.31.0
-
+slowapi
+fastapi
+pyotp
+argon2-cffi
+bcrypt

@@ -1,4 +1,5 @@
 {
   "algo_type": "sha256",
-  "protection_flags" : ["pepper", "totp"]
+  "rate_limit": "5/minute",
+  "protection_flags" : ["pepper", "totp", "rate_limit"]
 }
