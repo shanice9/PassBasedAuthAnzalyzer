@@ -74,9 +74,10 @@ def generate_captcha_token() -> str:
     VALID_CAPTCHA_TOKENS.add(token)
     return token
 
-def validate_and_consume_captcha_token(token: str) -> bool:
+def validate_and_consume_captcha_token(token: str, client_ip: str) -> bool:
     if token in VALID_CAPTCHA_TOKENS:
         VALID_CAPTCHA_TOKENS.remove(token)
+        reset_failed_attempts(client_ip)
         return True
     return False
 
