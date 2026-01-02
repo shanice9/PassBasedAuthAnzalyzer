@@ -2,6 +2,8 @@
   "target_url": "http://localhost:8000/login",
   "log_file": "attacker_log.jsonl",
   "group_seed": "534919433",
+  "attack_mode": "password_spraying",
+  "user_file": "users.txt",
   "target_username": "weak2",
   "password_file": "rockyou.txt",
   "max_attempts": 100,

