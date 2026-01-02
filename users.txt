@@ -1,0 +1,10 @@
+weak1
+weak2
+weak3
+weak4
+weak5
+weak6
+weak7
+weak8
+weak9
+weak10
