@@ -92,6 +92,18 @@ def login(req: LoginRequest, request: Request, conn: sqlite3.Connection = Depend
     totp_secret = user["totp_secret"] if user else None
     totp_required = totp_enabled and totp_secret
     captcha_enabled = "captcha" in config.PROTECTION_FLAGS
+    lockout_enabled = "account_lockout" in config.PROTECTION_FLAGS
+
+    if lockout_enabled and security.is_account_locked(req.username):
+        result_str = "Account Locked"
+        database.log_attempt(
+            username=req.username,
+            hash_mode=hash_mode,
+            result=result_str,
+            latency_ms=(time.time() - start_time) * 1000,
+            protection_flags=config.PROTECTION_FLAGS
+        )
+        raise HTTPException(status_code=403, detail=result_str)
 
     # If captcha is enabled and required for this ip, and invalid captcha token or it doesn't exists
     if captcha_enabled and security.is_captcha_required(client_ip) and not (req.captcha_token and security.validate_and_consume_captcha_token(req.captcha_token)):
@@ -116,8 +128,10 @@ def login(req: LoginRequest, request: Request, conn: sqlite3.Connection = Depend
         result_str = "Password login | Login Successful"
         if captcha_enabled:
             security.reset_failed_attempts(client_ip)
+        if lockout_enabled:
+            security.reset_failed_login(req.username)
         if totp_required:
-            result_str = "Password login | TOTP required"
+            result_str = "Password login | TOTP code required"
 
     end_time = time.time()
     latency_ms = (end_time - start_time) * 1000
@@ -133,6 +147,8 @@ def login(req: LoginRequest, request: Request, conn: sqlite3.Connection = Depend
     if not login_success:
         if captcha_enabled:
             security.record_failed_attempt(client_ip)
+        if lockout_enabled:
+            security.record_failed_login(req.username)
         raise HTTPException(status_code=401, detail=result_str)
 
     return {

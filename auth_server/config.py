@@ -13,7 +13,9 @@ GROUP_SEED = "534919433"
 PROTECTION_FLAGS = []
 PEPPER_SECRET = ""
 RATE_LIMIT = "3/minute"
-CAPTCHA_THRESHOLD = 3
+CAPTCHA_THRESHOLD = 10
+LOCKOUT_THRESHOLD = 5
+LOCKOUT_DURATION_SECS = 60
 
 # all possible hashes
 class HashAlgo(str, Enum):
@@ -23,7 +25,7 @@ class HashAlgo(str, Enum):
 
 
 def load_config():
-    global HASH_ALGO, PROTECTION_FLAGS, PEPPER_SECRET, RATE_LIMIT, CAPTCHA_THRESHOLD
+    global HASH_ALGO, PROTECTION_FLAGS, PEPPER_SECRET, RATE_LIMIT, CAPTCHA_THRESHOLD, LOCKOUT_THRESHOLD, LOCKOUT_DURATION_SECS
     if not os.path.exists(CONFIG_FILE):
         print(f"{CONFIG_FILE} not found, stopping server.")
         raise FileNotFoundError(f"{CONFIG_FILE} not found")
@@ -41,7 +43,9 @@ def load_config():
             PROTECTION_FLAGS = data.get("protection_flags", [])
             PEPPER_SECRET = os.getenv("SERVER_PEPPER", "")
             RATE_LIMIT = data.get("rate_limit", "3/minute")
-            CAPTCHA_THRESHOLD = data.get("captcha_threshold", 3)
+            CAPTCHA_THRESHOLD = data.get("captcha_threshold", 10)
+            LOCKOUT_THRESHOLD = data.get("lockout_threshold", 3)
+            LOCKOUT_DURATION_SECS = data.get("lockout_duration", 60)
     except Exception as e:
         print(f"Error loading {CONFIG_FILE}: {e}")
 
