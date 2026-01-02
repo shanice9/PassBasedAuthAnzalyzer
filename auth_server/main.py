@@ -106,7 +106,7 @@ def login(req: LoginRequest, request: Request, conn: sqlite3.Connection = Depend
         raise HTTPException(status_code=403, detail=result_str)
 
     # If captcha is enabled and required for this ip, and invalid captcha token or it doesn't exists
-    if captcha_enabled and security.is_captcha_required(client_ip) and not (req.captcha_token and security.validate_and_consume_captcha_token(req.captcha_token)):
+    if captcha_enabled and security.is_captcha_required(client_ip) and not (req.captcha_token and security.validate_and_consume_captcha_token(req.captcha_token, client_ip)):
         result_str = "CAPTCHA Required / Invalid Token"
         database.log_attempt(
             username=req.username,

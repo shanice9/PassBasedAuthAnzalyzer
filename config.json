@@ -1,8 +1,8 @@
 {
   "protection_flags" : ["pepper", "totp", "captcha", "rate_limit", "account_lockout"],
   "algo_type": "sha256",
-  "rate_limit": "5/minute",
-  "captcha_threshold": 8,
-  "lockout_threshold": 3,
+  "rate_limit": "100/minute",
+  "captcha_threshold": 5,
+  "lockout_threshold": 15,
   "lockout_duration_secs": 60
 }
