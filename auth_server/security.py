@@ -6,6 +6,7 @@ import config
 import database
 import uuid
 import pyotp
+import time
 from fastapi import Request
 from fastapi.responses import JSONResponse
 from slowapi import Limiter
@@ -19,22 +20,54 @@ ph_argon2 = PasswordHasher(
     parallelism=1
 )
 
-FAILED_ATTEMPTS = dict()
+# '<ip>': <number_of_failed_attempts>
+IP_FAILED_ATTEMPTS = dict()
 VALID_CAPTCHA_TOKENS = set()
+# '<username>': <number_of_failed_attempts>
+USER_FAILED_ATTEMPTS = dict()
+# '<username': <timestamp_when_unlocks>
+LOCKED_USERS = dict()
+
+def record_failed_login(username: str):
+    if "account_lockout" not in config.PROTECTION_FLAGS:
+        return
+    current_fails = USER_FAILED_ATTEMPTS.get(username, 0) + 1
+    USER_FAILED_ATTEMPTS[username] = current_fails
+    if current_fails >= config.LOCKOUT_THRESHOLD:
+        LOCKED_USERS[username] = time.time() + config.LOCKOUT_DURATION_SECS
 
 def record_failed_attempt(ip: str):
-    if ip not in FAILED_ATTEMPTS.keys():
-        FAILED_ATTEMPTS[ip] = 0
-    FAILED_ATTEMPTS[ip] += 1
+    IP_FAILED_ATTEMPTS[ip] = IP_FAILED_ATTEMPTS.get(ip, 0) + 1
+
+def reset_failed_login(username: str):
+    if username in USER_FAILED_ATTEMPTS:
+        del USER_FAILED_ATTEMPTS[username]
+    if username in LOCKED_USERS:
+        del LOCKED_USERS[username]
 
 def reset_failed_attempts(ip: str):
-    if ip in FAILED_ATTEMPTS:
-        del FAILED_ATTEMPTS[ip]
+    if ip in IP_FAILED_ATTEMPTS:
+        del IP_FAILED_ATTEMPTS[ip]
 
 def is_captcha_required(ip: str) -> bool:
     if "captcha" not in config.PROTECTION_FLAGS:
         return False
-    return FAILED_ATTEMPTS.get(ip, 0) >= config.CAPTCHA_THRESHOLD
+    return IP_FAILED_ATTEMPTS.get(ip, 0) >= config.CAPTCHA_THRESHOLD
+
+def is_account_locked(username: str) -> bool:
+    if "account_lockout" not in config.PROTECTION_FLAGS:
+        return False
+
+    if username in LOCKED_USERS:
+        unlock_time = LOCKED_USERS[username]
+        if time.time() < unlock_time:
+            return True
+        else:
+            del LOCKED_USERS[username]
+            if username in USER_FAILED_ATTEMPTS:
+                del USER_FAILED_ATTEMPTS[username]
+            return False
+    return False
 
 def generate_captcha_token() -> str:
     token = str(uuid.uuid4())
