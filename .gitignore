@@ -5,3 +5,4 @@ rockyou.txt
 PassBasedAuth.sqlite
 attempts.log
 attacker_log.jsonl
+.idea/
