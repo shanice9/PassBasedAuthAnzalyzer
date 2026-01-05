@@ -11,7 +11,6 @@ import config
 import security
 import database
 import loaders
-from auth_server.security import record_failed_attempt
 
 app = FastAPI(title="Auth Server")
 app.state.limiter = security.limiter
