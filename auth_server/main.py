@@ -11,7 +11,6 @@ import config
 import security
 import database
 import loaders
-from auth_server.security import record_failed_attempt
 
 app = FastAPI(title="Auth Server")
 app.state.limiter = security.limiter
@@ -90,7 +89,7 @@ def login(req: LoginRequest, request: Request, conn: sqlite3.Connection = Depend
     user = database.get_user(req.username, cursor)
     hash_mode = user["algo_type"] if user else "Unknown"
     totp_secret = user["totp_secret"] if user else None
-    totp_required = totp_enabled and totp_secret
+    totp_required = totp_enabled and totp_secret is not None
     captcha_enabled = "captcha" in config.PROTECTION_FLAGS
     lockout_enabled = "account_lockout" in config.PROTECTION_FLAGS
 
