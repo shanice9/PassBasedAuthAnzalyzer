@@ -4,3 +4,4 @@ fastapi
 pyotp
 argon2-cffi
 bcrypt
+uvicorn
