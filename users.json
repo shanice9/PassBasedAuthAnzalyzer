@@ -3,12 +3,12 @@
   "users": [
     {
       "username": "weak1",
-      "password": "123456",
-      "totp_secret": "RFZERGPVDSLGD6FQR3Y6Q43SEX54LGBD"
+      "password": "123456"
     },
     {
       "username": "weak2",
-      "password": "admin"
+      "password": "admin",
+      "totp_secret": "RFZERGPVDSLGD6FQR3Y6Q43SEX54LGBD"
     },
     {
       "username": "weak3",
